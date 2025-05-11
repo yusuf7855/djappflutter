@@ -22,9 +22,58 @@ class PlaylistCard extends StatefulWidget {
   State<PlaylistCard> createState() => _PlaylistCardState();
 }
 
-class _PlaylistCardState extends State<PlaylistCard> {
+class _PlaylistCardState extends State<PlaylistCard> with AutomaticKeepAliveClientMixin {
+  late List<WebViewController?> _webViewControllers;
+  bool _isInitialized = false;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeWebViews();
+  }
+
+  void _initializeWebViews() {
+    if (widget.playlist['musics'] == null) {
+      _isInitialized = true;
+      return;
+    }
+
+    final musics = widget.playlist['musics'] as List;
+    _webViewControllers = List<WebViewController?>.filled(musics.length, null);
+
+    // Pre-initialize all web views for this playlist
+    for (int i = 0; i < musics.length; i++) {
+      final music = musics[i] as Map<String, dynamic>;
+      final spotifyId = music['spotifyId']?.toString();
+      final uniqueKey = '${widget.playlist['_id']}-$i';
+
+      if (spotifyId != null) {
+        if (widget.activeWebViews.containsKey(uniqueKey)) {
+          _webViewControllers[i] = widget.activeWebViews[uniqueKey]!;
+        } else {
+          _createWebViewController(spotifyId, uniqueKey).then((controller) {
+            if (mounted) {
+              setState(() {
+                _webViewControllers[i] = controller;
+                if (i == musics.length - 1) _isInitialized = true;
+              });
+            }
+          });
+        }
+      } else {
+        _webViewControllers[i] = null;
+        if (i == musics.length - 1) _isInitialized = true;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Needed for AutomaticKeepAliveClientMixin
+
     return Card(
       color: Colors.grey[900],
       margin: const EdgeInsets.only(bottom: 12),
@@ -64,20 +113,19 @@ class _PlaylistCardState extends State<PlaylistCard> {
       ];
     }
 
-    return (widget.playlist['musics'] as List).asMap().entries.map((entry) {
+    final musics = widget.playlist['musics'] as List;
+    return List.generate(musics.length, (index) {
       return _buildMusicPlayer(
-        entry.value as Map<String, dynamic>,
-        widget.index,
-        entry.key,
+        musics[index] as Map<String, dynamic>,
+        index,
       );
-    }).toList();
+    });
   }
 
-  Widget _buildMusicPlayer(Map<String, dynamic> music, int playlistIndex, int musicIndex) {
+  Widget _buildMusicPlayer(Map<String, dynamic> music, int musicIndex) {
     final spotifyId = music['spotifyId']?.toString();
-    final uniqueKey = '$playlistIndex-$musicIndex';
 
-    if (spotifyId == null) {
+    if (spotifyId == null || !_isInitialized || _webViewControllers[musicIndex] == null) {
       return Container(
         height: 60,
         color: Colors.grey[800],
@@ -98,52 +146,13 @@ class _PlaylistCardState extends State<PlaylistCard> {
     return Container(
       height: 80,
       color: Colors.grey[800],
-      child: FutureBuilder<WebViewController>(
-        future: _createWebViewController(spotifyId, uniqueKey),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 8),
-                  Text(
-                    music['title'] ?? 'Loading track...',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ),
-            );
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error, color: Colors.red),
-                  const SizedBox(height: 8),
-                  Text(
-                    music['title'] ?? 'Error loading track',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ),
-            );
-          }
-          return WebViewWidget(
-            controller: snapshot.data!,
-          );
-        },
+      child: WebViewWidget(
+        controller: _webViewControllers[musicIndex]!,
       ),
     );
   }
 
   Future<WebViewController> _createWebViewController(String spotifyId, String uniqueKey) async {
-    if (widget.activeWebViews.containsKey(uniqueKey)) {
-      return widget.activeWebViews[uniqueKey]!;
-    }
-
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.transparent)
@@ -159,5 +168,11 @@ class _PlaylistCardState extends State<PlaylistCard> {
 
     widget.activeWebViews[uniqueKey] = controller;
     return controller;
+  }
+
+  @override
+  void dispose() {
+    // Don't dispose controllers here - let the parent widget handle them
+    super.dispose();
   }
 }
