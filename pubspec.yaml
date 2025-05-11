@@ -8,6 +8,7 @@ environment:
   sdk: ^3.7.2
 
 dependencies:
+  url_launcher: ^6.1.0
   webview_flutter: ^4.11.0
   just_audio: ^0.9.34
   rxdart: ^0.27.7
@@ -26,6 +27,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/beatport_logo.png
     - assets/your_logo.png
     - assets/default_profile.png
     - assets/default_music.jpg
