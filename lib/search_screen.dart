@@ -22,7 +22,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Future<void> fetchAllUsers() async {
     try {
-      final response = await http.get(Uri.parse('http://192.168.1.102:5000/api/search?query='));
+      final response = await http.get(Uri.parse('http://192.168.1.103:5000/api/search?query='));
 
       if (response.statusCode == 200) {
         setState(() {
@@ -116,7 +116,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ProfileScreen(userId: user['_id']),
+                      builder: (context) => ProfileScreen(),
                     ),
                   );
                 },

@@ -39,12 +39,11 @@ class _MusicScreenState extends State<MusicScreen> {
   Future<void> _initializeUser() async {
     final prefs = await SharedPreferences.getInstance();
     final fetchedUserId = prefs.getString('userId');
-    final fetchedUserName = prefs.getString('userName');
+    print('Fetched userId: $fetchedUserId');
 
     if (mounted) {
       setState(() {
         userId = fetchedUserId;
-        userName = fetchedUserName;
       });
 
       if (userId == null) {
@@ -63,7 +62,7 @@ class _MusicScreenState extends State<MusicScreen> {
 
   Future<void> _fetchMusic() async {
     try {
-      final response = await http.get(Uri.parse('http://192.168.1.102:5000/api/music'));
+      final response = await http.get(Uri.parse('http://192.168.1.103:5000/api/music'));
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         if (mounted) {
@@ -103,7 +102,7 @@ class _MusicScreenState extends State<MusicScreen> {
       final token = prefs.getString('auth_token');
 
       final response = await http.get(
-        Uri.parse('http://192.168.1.102:5000/api/playlists/user/$userId'),
+        Uri.parse('http://192.168.1.103:5000/api/playlists/user/$userId'),
         headers: {
           'Authorization': 'Bearer $token',
         },
@@ -142,7 +141,7 @@ class _MusicScreenState extends State<MusicScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.1.102:5000/api/music/$musicId/like'),
+        Uri.parse('http://192.168.1.103:5000/api/music/$musicId/like'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'userId': userId}),
       );
@@ -165,7 +164,7 @@ class _MusicScreenState extends State<MusicScreen> {
       final token = prefs.getString('auth_token');
 
       final response = await http.post(
-        Uri.parse('http://192.168.1.102:5000/api/music/$musicId/add-to-playlist'),
+        Uri.parse('http://192.168.1.103:5000/api/music/$musicId/add-to-playlist'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -224,7 +223,7 @@ class _MusicScreenState extends State<MusicScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.1.102:5000/api/playlists'),
+        Uri.parse('http://192.168.1.103:5000/api/playlists'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

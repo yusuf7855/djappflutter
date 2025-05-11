@@ -29,7 +29,7 @@ class _AuthPageState extends State<AuthPage> {
   final _resetEmailController = TextEditingController();
 
   // API endpoints
-  static const String _baseUrl = 'http://192.168.1.102:5000/api';
+  static const String _baseUrl = 'http://192.168.1.103:5000/api';
   static const String _registerEndpoint = '$_baseUrl/register';
   static const String _loginEndpoint = '$_baseUrl/login';
   static const String _forgotPasswordEndpoint = '$_baseUrl/forgot-password';

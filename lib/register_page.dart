@@ -20,7 +20,7 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _isLoading = false;
   String _errorMessage = '';
 
-  static const String _registerEndpoint = 'http://192.168.1.102:5000/api/register';
+  static const String _registerEndpoint = 'http://192.168.1.103:5000/api/register';
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
