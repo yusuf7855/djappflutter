@@ -15,17 +15,12 @@ class HomeScreen extends StatelessWidget {
         automaticallyImplyLeading: true,
         backgroundColor: Colors.black,
         elevation: 0,
-        title: Text(
-          'DJ MOBİL',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-            letterSpacing: 1.5,
-          ),
+        title: Image.asset(
+          'assets/your_logo.png',
+          height: 60, // logonun yüksekliği
         ),
         centerTitle: true,
-        iconTheme: IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       drawer: Drawer(
         backgroundColor: Colors.black,

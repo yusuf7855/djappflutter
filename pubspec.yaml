@@ -27,6 +27,11 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/afra.jpeg
+    - assets/down.jpg
+    - assets/organic.jpeg
+    - assets/melodic.jpg
+    - assets/indie.jpg
     - assets/beatport_logo.png
     - assets/your_logo.png
     - assets/default_profile.png

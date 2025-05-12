@@ -27,7 +27,6 @@ class _FreePageState extends State<FreePage> {
 
   void _preloadWebViews() {
     for (final track in tracks) {
-      // Create controller first
       final controller = WebViewController()
         ..setBackgroundColor(Colors.transparent)
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -35,13 +34,10 @@ class _FreePageState extends State<FreePage> {
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
         );
 
-      // Store in cache before setting navigation delegate
       _controllerCache[track['id']!] = controller;
 
-      // Now set navigation delegate with cached controller
       controller.setNavigationDelegate(NavigationDelegate(
         onPageFinished: (String url) {
-          // No need to cache again since we already cached it
         },
       ));
 
