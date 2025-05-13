@@ -11,14 +11,23 @@ class MusicScreen extends StatefulWidget {
   _MusicScreenState createState() => _MusicScreenState();
 }
 
-class _MusicScreenState extends State<MusicScreen> {
+class _MusicScreenState extends State<MusicScreen> with SingleTickerProviderStateMixin {
   String _selectedCategory = 'All';
   List<Map<String, dynamic>> musicList = [];
   List<Map<String, dynamic>> userPlaylists = [];
   bool isLoading = true;
+  bool _allTracksLoaded = false;
   String? userId;
-  String? userName;
   TextEditingController _newPlaylistController = TextEditingController();
+  bool _isDisposed = false;
+  // Animation controllers
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+  late Animation<Color?> _colorAnimation;
+
+  // WebView cache and loading states
+  final Map<String, WebViewController> _webViewCache = {};
+  final Map<String, bool> _webViewLoadingStates = {};
 
   final List<String> categories = [
     'All',
@@ -32,6 +41,25 @@ class _MusicScreenState extends State<MusicScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Initialize animations
+    _animationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.15).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    _colorAnimation = ColorTween(
+      begin: Colors.white.withOpacity(0.8),
+      end: Colors.white,
+    ).animate(_animationController);
+
     _initializeUser();
     _fetchMusic();
   }
@@ -39,20 +67,20 @@ class _MusicScreenState extends State<MusicScreen> {
   Future<void> _initializeUser() async {
     final prefs = await SharedPreferences.getInstance();
     final fetchedUserId = prefs.getString('userId');
-    print('Fetched userId: $fetchedUserId');
 
-    if (mounted) {
+    if (mounted && !_isDisposed) {
       setState(() {
         userId = fetchedUserId;
       });
 
       if (userId == null) {
-        print('User not logged in, redirecting to login...');
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => LoginPage()),
-          );
+          if (mounted && !_isDisposed) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => LoginPage()),
+            );
+          }
         });
       } else {
         _fetchUserPlaylists();
@@ -65,7 +93,7 @@ class _MusicScreenState extends State<MusicScreen> {
       final response = await http.get(Uri.parse('http://192.168.1.103:5000/api/music'));
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        if (mounted) {
+        if (mounted && !_isDisposed) {
           setState(() {
             musicList = data.map((item) => {
               'id': item['spotifyId'],
@@ -78,21 +106,61 @@ class _MusicScreenState extends State<MusicScreen> {
             }).toList();
             isLoading = false;
           });
+          _preloadWebViews();
         }
       } else {
         throw Exception('Failed to load music');
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         setState(() {
           isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading music: $e')),
+          SnackBar(content: Text('Müzik yüklenirken hata: $e')),
         );
       }
     }
   }
+
+  void _preloadWebViews() {
+    for (final track in musicList) {
+      _webViewLoadingStates[track['id']] = false;
+
+      final controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(Colors.transparent)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageFinished: (url) {
+              if (mounted && !_isDisposed) {
+                setState(() {
+                  _webViewLoadingStates[track['id']] = true;
+                  _checkAllTracksLoaded();
+                });
+              }
+            },
+          ),
+        )
+        ..loadRequest(Uri.parse(
+          'https://open.spotify.com/embed/track/${track['id']}?utm_source=generator&theme=0',
+        ));
+
+      _webViewCache[track['id']] = controller;
+    }
+  }
+  void _checkAllTracksLoaded() {
+    if (_webViewLoadingStates.values.every((isLoaded) => isLoaded)) {
+      if (mounted && !_isDisposed) {
+        setState(() {
+          _allTracksLoaded = true;
+        });
+        // Only stop the animation, don't dispose here
+        _animationController.stop();
+      }
+    }
+  }
+
 
   Future<void> _fetchUserPlaylists() async {
     if (userId == null) return;
@@ -128,7 +196,7 @@ class _MusicScreenState extends State<MusicScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading playlists: ${e.toString()}'),
+            content: Text('Çalma listeleri yüklenirken hata: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -152,7 +220,7 @@ class _MusicScreenState extends State<MusicScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error toggling like: $e')),
+          SnackBar(content: Text('Beğeni işlemi sırasında hata: $e')),
         );
       }
     }
@@ -180,7 +248,7 @@ class _MusicScreenState extends State<MusicScreen> {
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(responseData['message'] ?? 'Added to playlist successfully'),
+            content: Text(responseData['message'] ?? 'Çalma listesine başarıyla eklendi'),
             backgroundColor: Colors.green,
           ),
         );
@@ -188,7 +256,7 @@ class _MusicScreenState extends State<MusicScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(responseData['message'] ?? 'Failed to add to playlist'),
+            content: Text(responseData['message'] ?? 'Çalma listesine eklenirken hata'),
             backgroundColor: Colors.red,
           ),
         );
@@ -196,7 +264,7 @@ class _MusicScreenState extends State<MusicScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: ${e.toString()}'),
+          content: Text('Hata: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
@@ -206,14 +274,14 @@ class _MusicScreenState extends State<MusicScreen> {
   Future<void> _createNewPlaylist(String musicId) async {
     if (userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please log in to create playlists')),
+        SnackBar(content: Text('Çalma listesi oluşturmak için giriş yapın')),
       );
       return;
     }
 
     if (_newPlaylistController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please enter a playlist name')),
+        SnackBar(content: Text('Çalma listesi adı girin')),
       );
       return;
     }
@@ -236,7 +304,7 @@ class _MusicScreenState extends State<MusicScreen> {
 
       if (response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Playlist created successfully')),
+          SnackBar(content: Text('Çalma listesi oluşturuldu')),
         );
         _newPlaylistController.clear();
         await Future.wait([
@@ -245,14 +313,14 @@ class _MusicScreenState extends State<MusicScreen> {
         ]);
         Navigator.of(context).pop();
       } else {
-        final error = json.decode(response.body)['message'] ?? 'Failed to create playlist';
+        final error = json.decode(response.body)['message'] ?? 'Çalma listesi oluşturulamadı';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(error)),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+        SnackBar(content: Text('Hata: ${e.toString()}')),
       );
     }
   }
@@ -278,7 +346,7 @@ class _MusicScreenState extends State<MusicScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          "Add to Playlist",
+                          "Çalma Listesine Ekle",
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 20,
@@ -294,7 +362,7 @@ class _MusicScreenState extends State<MusicScreen> {
                     SizedBox(height: 16),
                     if (userPlaylists.isNotEmpty) ...[
                       Text(
-                        "Your Playlists",
+                        "Çalma Listeleriniz",
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 16,
@@ -320,7 +388,7 @@ class _MusicScreenState extends State<MusicScreen> {
                                 style: TextStyle(color: Colors.white),
                               ),
                               subtitle: Text(
-                                "${playlist['musicCount']} songs",
+                                "${playlist['musicCount']} şarkı",
                                 style: TextStyle(color: Colors.white70),
                               ),
                               trailing: Icon(Icons.add, color: Colors.green),
@@ -337,7 +405,7 @@ class _MusicScreenState extends State<MusicScreen> {
                       SizedBox(height: 8),
                     ],
                     Text(
-                      "Create New Playlist",
+                      "Yeni Çalma Listesi Oluştur",
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 16,
@@ -350,7 +418,7 @@ class _MusicScreenState extends State<MusicScreen> {
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: Colors.grey[800],
-                        hintText: 'Enter playlist name',
+                        hintText: 'Çalma listesi adı girin',
                         hintStyle: TextStyle(color: Colors.white54),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -369,7 +437,7 @@ class _MusicScreenState extends State<MusicScreen> {
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(),
                           child: Text(
-                            'Cancel',
+                            'İptal',
                             style: TextStyle(color: Colors.white70),
                           ),
                         ),
@@ -386,7 +454,7 @@ class _MusicScreenState extends State<MusicScreen> {
                             ),
                           ),
                           onPressed: () => _createNewPlaylist(musicId),
-                          child: Text('Create & Add'),
+                          child: Text('Oluştur ve Ekle'),
                         ),
                       ],
                     ),
@@ -413,11 +481,11 @@ class _MusicScreenState extends State<MusicScreen> {
           mode: LaunchMode.platformDefault,
         );
       } else {
-        throw 'Could not launch $url';
+        throw 'Bağlantı açılamadı: $url';
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text('Hata: $e')),
       );
     }
   }
@@ -428,7 +496,7 @@ class _MusicScreenState extends State<MusicScreen> {
       backgroundColor: Colors.black,
       body: Column(
         children: [
-          // Categories
+          // Kategoriler
           Container(
             height: 60,
             padding: EdgeInsets.symmetric(horizontal: 16),
@@ -463,41 +531,68 @@ class _MusicScreenState extends State<MusicScreen> {
             ),
           ),
 
-          // Music List
-          isLoading
-              ? Expanded(
-            child: Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-          )
-              : Expanded(
-            child: ListView.separated(
-              padding: EdgeInsets.all(16),
-              physics: BouncingScrollPhysics(),
-              itemCount: _getFilteredMusic().length,
-              separatorBuilder: (_, __) => SizedBox(height: 16),
-              itemBuilder: (context, index) {
-                final track = _getFilteredMusic()[index];
-                return _buildMusicCard(track);
-              },
-            ),
+          // İçerik
+          Expanded(
+            child: isLoading || !_allTracksLoaded
+                ? _buildLoadingAnimation()
+                : _buildMusicContent(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMusicCard(Map<String, dynamic> track) {
-    final embedUrl =
-        'https://open.spotify.com/embed/track/${track['id']}?utm_source=generator&theme=0';
+  Widget _buildLoadingAnimation() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: _animationController,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _scaleAnimation.value,
+                child: Text(
+                  'B',
+                  style: TextStyle(
+                    color: _colorAnimation.value,
+                    fontSize: 96,
+                    fontWeight: FontWeight.bold,
+                    fontStyle: FontStyle.italic,
+                    shadows: [
+                      Shadow(
+                        color: Colors.white.withOpacity(0.7),
+                        blurRadius: 15,
+                        offset: Offset(0, 0),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
-    final controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.transparent)
-      ..setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36')
-      ..loadRequest(Uri.parse(embedUrl));
+  Widget _buildMusicContent() {
+    final filteredMusic = _getFilteredMusic();
+
+    return ListView.separated(
+      padding: EdgeInsets.all(16),
+      physics: BouncingScrollPhysics(),
+      itemCount: filteredMusic.length,
+      separatorBuilder: (_, __) => SizedBox(height: 16),
+      itemBuilder: (context, index) {
+        final track = filteredMusic[index];
+        return _buildMusicCard(track);
+      },
+    );
+  }
+
+  Widget _buildMusicCard(Map<String, dynamic> track) {
+    final controller = _webViewCache[track['id']];
 
     return Container(
       decoration: BoxDecoration(
@@ -513,7 +608,6 @@ class _MusicScreenState extends State<MusicScreen> {
       ),
       child: Column(
         children: [
-
           // Spotify embed
           Container(
             height: 80,
@@ -528,11 +622,11 @@ class _MusicScreenState extends State<MusicScreen> {
                 topLeft: Radius.circular(8),
                 topRight: Radius.circular(8),
               ),
-              child: WebViewWidget(controller: controller),
+              child: WebViewWidget(controller: controller!),
             ),
           ),
 
-          // Action buttons row
+          // Action buttons
           Container(
             padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
@@ -573,15 +667,19 @@ class _MusicScreenState extends State<MusicScreen> {
                 if (track['beatportUrl']?.isNotEmpty == true)
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      foregroundColor: Colors.white, backgroundColor: Colors.transparent,
+                      foregroundColor: Colors.white,
+                      backgroundColor: Colors.transparent,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                     ),
                     icon: Image.asset(
-                      'assets/beatport_logo.png', // Make sure to add this asset
+                      'assets/beatport_logo.png',
                       width: 24,
                       height: 24,
                     ),
@@ -605,7 +703,11 @@ class _MusicScreenState extends State<MusicScreen> {
 
   @override
   void dispose() {
+    _isDisposed = true; // Set the flag when disposing
+    _animationController.stop(); // Stop the animation first
+    _animationController.dispose(); // Then dispose it
     _newPlaylistController.dispose();
+    _webViewCache.clear();
     super.dispose();
   }
 }

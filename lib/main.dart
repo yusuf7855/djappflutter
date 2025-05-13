@@ -2,8 +2,8 @@ import 'package:djmobilapp/profile.dart';
 import 'package:djmobilapp/register_page.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart'; // Bu satırı ekleyin
 import 'package:shared_preferences/shared_preferences.dart';
-
 
 import 'authpage.dart';
 import 'communitypage.dart';
@@ -11,8 +11,32 @@ import 'freepage.dart';
 import 'homepage.dart';
 import 'login_page.dart';
 
+class LoadingProvider extends ChangeNotifier {
+  bool _isLoading = false;
+  String _loadingText = 'Yükleniyor...';
+
+  bool get isLoading => _isLoading;
+  String get loadingText => _loadingText;
+
+  void startLoading([String text = 'Yükleniyor...']) {
+    _isLoading = true;
+    _loadingText = text;
+    notifyListeners();
+  }
+
+  void stopLoading() {
+    _isLoading = false;
+    notifyListeners();
+  }
+}
+
 void main() {
-  runApp(MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => LoadingProvider(),
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -26,7 +50,7 @@ class MyApp extends StatelessWidget {
         '/login': (context) => LoginPage(),
         '/register': (context) => RegisterPage(),
         '/home': (context) => MainHomePage(),
-        '/profile': (context) => ProfileScreen(), // Profile page route
+        '/profile': (context) => ProfileScreen(),
       },
       theme: ThemeData(
         primarySwatch: Colors.indigo,

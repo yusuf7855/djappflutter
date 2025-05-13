@@ -6,11 +6,14 @@ class FreePage extends StatefulWidget {
   _FreePageState createState() => _FreePageState();
 }
 
-class _FreePageState extends State<FreePage> {
-  // WebView controllers cache
+class _FreePageState extends State<FreePage> with SingleTickerProviderStateMixin {
   final Map<String, WebViewController> _controllerCache = {};
+  final Map<String, bool> _loadingStates = {};
+  bool _allLoaded = false;
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+  late Animation<Color?> _colorAnimation;
 
-  // Track list
   final List<Map<String, String>> tracks = [
     {'id': "4QHKR48C18rwlpSYW6rH7p"},
     {'id': "3pPe4F2kFRp9ipARwxFmQr"},
@@ -22,29 +25,67 @@ class _FreePageState extends State<FreePage> {
   @override
   void initState() {
     super.initState();
+
+    // Initialize animation controller
+    _animationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+
+    // Scale animation with larger range
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.15).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    // Color animation with more contrast
+    _colorAnimation = ColorTween(
+      begin: Colors.white.withOpacity(0.8),
+      end: Colors.white,
+    ).animate(_animationController);
+
     _preloadWebViews();
   }
 
-  void _preloadWebViews() {
+  void _preloadWebViews() async {
     for (final track in tracks) {
-      final controller = WebViewController()
-        ..setBackgroundColor(Colors.transparent)
+      _loadingStates[track['id']!] = false;
+
+      final controller = WebViewController();
+
+      controller
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setUserAgent(
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
-        );
+        ..setBackgroundColor(Colors.transparent)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageFinished: (url) {
+              if (mounted) {
+                setState(() {
+                  _loadingStates[track['id']!] = true;
+                  _checkAllLoaded();
+                });
+              }
+            },
+          ),
+        )
+        ..loadRequest(Uri.parse(
+          'https://open.spotify.com/embed/track/${track['id']}?utm_source=generator',
+        ));
 
       _controllerCache[track['id']!] = controller;
+    }
+  }
 
-      controller.setNavigationDelegate(NavigationDelegate(
-        onPageFinished: (String url) {
-        },
-      ));
-
-      // Finally load the request
-      controller.loadRequest(Uri.parse(
-          'https://open.spotify.com/embed/track/${track['id']}?utm_source=generator'
-      ));
+  void _checkAllLoaded() {
+    if (_loadingStates.values.every((isLoaded) => isLoaded)) {
+      if (mounted) {
+        setState(() {
+          _allLoaded = true;
+        });
+        _animationController.dispose();
+      }
     }
   }
 
@@ -66,27 +107,73 @@ class _FreePageState extends State<FreePage> {
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
       ),
-      body: Column(
+      body: _allLoaded ? _buildContent() : _buildLoadingAnimation(),
+    );
+  }
+
+  Widget _buildLoadingAnimation() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Expanded(
-            child: ListView.builder(
-              physics: const BouncingScrollPhysics(),
-              itemCount: tracks.length,
-              itemBuilder: (context, index) {
-                final track = tracks[index];
-                return _buildTrackCard(track);
-              },
+          AnimatedBuilder(
+            animation: _animationController,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _scaleAnimation.value,
+                child: Text(
+                  'B',
+                  style: TextStyle(
+                      color: _colorAnimation.value,
+                      fontSize: 96, // Increased from 72 to 96
+                      fontWeight: FontWeight.bold,
+                      fontStyle: FontStyle.italic,
+                      shadows: [
+                  Shadow(
+                  color: Colors.white.withOpacity(0.7),
+                  blurRadius: 15, // Increased blur
+                  offset: Offset(0, 0),
+                  )
+                  ],
+                ),
+              ),
+              );
+            },
+          ),
+          SizedBox(height: 30),
+          Text(
+            'İçerikler Yükleniyor...',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 18, // Slightly larger text
+              letterSpacing: 1.5,
             ),
           ),
-          _buildBottomSection(),
         ],
       ),
     );
   }
 
+  Widget _buildContent() {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            physics: const BouncingScrollPhysics(),
+            itemCount: tracks.length,
+            itemBuilder: (context, index) {
+              final track = tracks[index];
+              return _buildTrackCard(track);
+            },
+          ),
+        ),
+        _buildBottomSection(),
+      ],
+    );
+  }
+
   Widget _buildTrackCard(Map<String, String> track) {
-    // Get controller from cache - it's guaranteed to exist because we preloaded
-    final controller = _controllerCache[track['id']]!;
+    final controller = _controllerCache[track['id']];
 
     return Container(
       margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -104,9 +191,7 @@ class _FreePageState extends State<FreePage> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: WebViewWidget(
-          controller: controller,
-        ),
+        child: WebViewWidget(controller: controller!),
       ),
     );
   }
@@ -124,7 +209,7 @@ class _FreePageState extends State<FreePage> {
       child: Column(
         children: [
           Text(
-            'Tüm Içeriklere Erişebilmek Için Sadece 10€/ay Abone Ol',
+            'Tüm İçeriklere Erişebilmek İçin Sadece 10€/ay Abone Ol',
             style: TextStyle(
               color: Colors.white,
               fontSize: 16,
@@ -190,6 +275,7 @@ class _FreePageState extends State<FreePage> {
 
   @override
   void dispose() {
+    _animationController.dispose();
     _controllerCache.clear();
     super.dispose();
   }
