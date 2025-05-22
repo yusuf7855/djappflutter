@@ -8,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'playlist_card.dart';
 import './url_constants.dart';
 
+// todo : bio , tri image,  links, event pickers, design
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
 
