@@ -8,7 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'playlist_card.dart';
 import './url_constants.dart';
 
-// todo : bio , tri image,  links, event pickers, design
+// todo : bio , tri image,  links, event pickers, design,
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -338,7 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         _buildStatColumn(followerCount, "Followers"),
         _buildStatColumn(followingCount, "Following"),
-        _buildStatColumn(playlists.length, "Playlists"),
+        _buildStatColumn(playlists.length, "Playlist"),
       ],
     );
   }
